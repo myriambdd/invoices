@@ -1,0 +1,400 @@
+Parfait, Meriam — on va te livrer un MVP clé-en-main (front React + Vite, back Node/Express + PostgreSQL 17) qui :
+extrait les infos via ton extractor.py (appel côté backend),
+affiche PDF/Image + formulaire éditable côte-à-côte,
+gère fournisseurs, factures, lignes, rappels, statuts,
+convertit toutes les monnaies en TND à partir de taux saisis par l’utilisateur,
+donne des stats par article (variation prix/quantité, comparaison fournisseurs),
+permet de fusionner articles et fournisseurs,
+inclut un mini chatbot (FR) pour “qu’est-ce qui est dû aujourd’hui/cette semaine/ce mois”.
+Je te mets l’architecture, le schéma SQL, le backend (Node), et le front (Vite/React + Tailwind). Tu peux copier/coller tel quel et lancer.
+1) Schéma PostgreSQL 17 (SQL)
+-- 001_schema.sql
+-- Extensions
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS citext;
+
+-- Types
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='invoice_status') THEN
+    CREATE TYPE invoice_status AS ENUM ('brouillon','extrait','en_attente_paiement','partiellement_payee','payee','en_retard','annulee');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname='payment_method') THEN
+    CREATE TYPE payment_method AS ENUM ('cash','cheque','virement','carte','traite','mandat','autre');
+  END IF;
+END $$;
+
+-- Tables de base
+CREATE TABLE IF NOT EXISTS currency_rates(
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  code TEXT NOT NULL CHECK (length(code)=3),
+  rate_to_tnd NUMERIC(18,6) NOT NULL CHECK (rate_to_tnd>0),
+  effective_date DATE NOT NULL,
+  UNIQUE(code, effective_date)
+);
+
+CREATE TABLE IF NOT EXISTS suppliers(
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  tax_id TEXT,
+  email citext,
+  phone TEXT,
+  address TEXT,
+  city TEXT,
+  country TEXT,
+  iban TEXT,
+  bic TEXT,
+  rib TEXT,
+  website TEXT,
+  notes TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  merged_into UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS suppliers_name_trgm_idx ON suppliers USING gin (name gin_trgm_ops);
+
+CREATE TABLE IF NOT EXISTS articles(
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sku TEXT,
+  label TEXT NOT NULL,
+  unit TEXT,
+  merged_into UUID REFERENCES articles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS articles_label_trgm_idx ON articles USING gin (label gin_trgm_ops);
+
+CREATE TABLE IF NOT EXISTS invoices(
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+  number TEXT,
+  invoice_date DATE,
+  currency TEXT CHECK (currency IS NULL OR length(currency)=3),
+  amount_ht NUMERIC(18,3),
+  amount_tva NUMERIC(18,3),
+  amount_ttc NUMERIC(18,3),
+  amount_ttc_tnd NUMERIC(18,3),
+  payment_terms TEXT,
+  payment_method payment_method,
+  iban TEXT,
+  bic TEXT,
+  rib TEXT,
+  buyer_name TEXT,
+  buyer_tax_id TEXT,
+  due_date DATE,
+  status invoice_status NOT NULL DEFAULT 'brouillon',
+  source_file_path TEXT,    -- chemin fichier sur disque
+  source_mime TEXT,
+  model TEXT,               -- modèle IA utilisé
+  raw_json JSONB,           -- trace de l’extraction
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS invoices_supplier_idx ON invoices(supplier_id);
+CREATE INDEX IF NOT EXISTS invoices_due_idx ON invoices(due_date);
+CREATE INDEX IF NOT EXISTS invoices_status_idx ON invoices(status);
+
+CREATE TABLE IF NOT EXISTS invoice_lines(
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  article_id UUID REFERENCES articles(id) ON DELETE SET NULL,
+  description TEXT,
+  qty NUMERIC(18,3),
+  unit TEXT,
+  unit_price NUMERIC(18,6),
+  total NUMERIC(18,3),
+  supplier_id UUID REFERENCES suppliers(id) ON DELETE SET NULL, -- pour stats par fournisseur
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS lines_invoice_idx ON invoice_lines(invoice_id);
+CREATE INDEX IF NOT EXISTS lines_article_idx ON invoice_lines(article_id);
+
+-- Rappels (enregistrés lorsque souhaité)
+CREATE TABLE IF NOT EXISTS reminders(
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  remind_on DATE NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'none',   -- email/sms/push/webhook/none
+  sent BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Settings simples
+CREATE TABLE IF NOT EXISTS app_settings(
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Helpers
+CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_suppliers_u BEFORE UPDATE ON suppliers FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_articles_u  BEFORE UPDATE ON articles  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_invoices_u  BEFORE UPDATE ON invoices  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_lines_u     BEFORE UPDATE ON invoice_lines FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Taux à date: dernier <= date, sinon dernier tout court
+CREATE OR REPLACE FUNCTION fx_rate_to_tnd(p_code TEXT, p_on DATE)
+RETURNS NUMERIC AS $$
+DECLARE r NUMERIC;
+BEGIN
+  SELECT rate_to_tnd INTO r
+  FROM currency_rates
+  WHERE code = upper(p_code) AND effective_date <= p_on
+  ORDER BY effective_date DESC LIMIT 1;
+  IF r IS NULL THEN
+    SELECT rate_to_tnd INTO r
+    FROM currency_rates
+    WHERE code = upper(p_code)
+    ORDER BY effective_date DESC LIMIT 1;
+  END IF;
+  RETURN r;
+END $$ LANGUAGE plpgsql;
+
+-- Vue stats article par fournisseur (prix moyen, min/max, quantité totale)
+CREATE OR REPLACE VIEW v_article_supplier_stats AS
+SELECT
+  COALESCE(al.article_id, '00000000-0000-0000-0000-000000000000'::uuid) AS article_id,
+  al.supplier_id,
+  avg(NULLIF(al.unit_price,0)) AS unit_price_avg,
+  min(NULLIF(al.unit_price,0)) AS unit_price_min,
+  max(NULLIF(al.unit_price,0)) AS unit_price_max,
+  sum(COALESCE(al.qty,0)) AS qty_sum,
+  count(*) AS lines_count
+FROM invoice_lines al
+GROUP BY al.article_id, al.supplier_id;
+
+-- Param par défaut : monnaie de base
+INSERT INTO app_settings(key, value)
+VALUES ('base_currency', '{"code":"TND"}')
+ON CONFLICT (key) DO NOTHING;
+2) Backend Node.js (Express + pg + Multer + appel Python)
+# Dossier server/
+npm init -y
+npm i express pg multer zod dayjs morgan cors
+npm i -D ts-node typescript @types/express @types/multer @types/cors @types/node
+npx tsc --init
+server/src/env.ts
+export const ENV = {
+  PORT: parseInt(process.env.PORT || "4000", 10),
+  DATABASE_URL: process.env.DATABASE_URL || "postgres://user:pass@localhost:5432/invoicedb",
+  PYTHON_BIN: process.env.PYTHON_BIN || "python3",
+  EXTRACTOR_PATH: process.env.EXTRACTOR_PATH || "/absolute/path/to/extractor.py",
+  UPLOAD_DIR: process.env.UPLOAD_DIR || "/tmp/invoices"
+};
+server/src/db.ts
+import { Pool } from "pg";
+import { ENV } from "./env";
+export const pool = new Pool({ connectionString: ENV.DATABASE_URL });
+export async function q<T=any>(text: string, params?: any[]) {
+  const res = await pool.query<T>(text, params); return res.rows;
+}
+server/src/extractor.ts (intégration Python)
+import { spawn } from "child_process";
+import { ENV } from "./env";
+
+export async function runExtractor(filePath: string) {
+  return new Promise<any>((resolve, reject) => {
+    const proc = spawn(ENV.PYTHON_BIN, [ENV.EXTRACTOR_PATH, filePath], { env: process.env });
+    let out = ""; let err = "";
+    proc.stdout.on("data", d => (out += d.toString("utf8")));
+    proc.stderr.on("data", d => (err += d.toString("utf8")));
+    proc.on("close", (code) => {
+      if (code === 0) {
+        try { resolve(JSON.parse(out)); } catch(e) { reject(e); }
+      } else { reject(new Error(err || `extractor exit ${code}`)); }
+    });
+  });
+}
+server/src/index.ts
+import express from "express";
+import morgan from "morgan";
+import cors from "cors";
+import path from "path";
+import fs from "fs";
+import multer from "multer";
+import dayjs from "dayjs";
+import { q } from "./db";
+import { ENV } from "./env";
+import { runExtractor } from "./extractor";
+
+fs.mkdirSync(ENV.UPLOAD_DIR, { recursive: true });
+const upload = multer({ dest: ENV.UPLOAD_DIR });
+const app = express();
+
+app.use(cors());
+app.use(morgan("dev"));
+app.use(express.json({ limit: "20mb" }));
+app.use("/files", express.static(ENV.UPLOAD_DIR)); // servir PDF/Images
+
+// ----- Settings (taux de change & base currency) -----
+app.get("/api/settings/rates", async (_, res) => {
+  const rows = await q("SELECT * FROM currency_rates ORDER BY code, effective_date DESC");
+  res.json(rows);
+});
+app.post("/api/settings/rates", async (req, res) => {
+  const { code, rate_to_tnd, effective_date } = req.body;
+  await q(
+    "INSERT INTO currency_rates(code, rate_to_tnd, effective_date) VALUES ($1,$2,$3) ON CONFLICT (code,effective_date) DO UPDATE SET rate_to_tnd=EXCLUDED.rate_to_tnd",
+    [code?.toUpperCase(), rate_to_tnd, effective_date]
+  );
+  res.json({ ok: true });
+});
+
+app.get("/api/settings/base-currency", async (_, res) => {
+  const r = await q<{value:any}>("SELECT value FROM app_settings WHERE key='base_currency' LIMIT 1");
+  res.json(r[0]?.value || { code: "TND" });
+});
+app.post("/api/settings/base-currency", async (req, res) => {
+  await q("INSERT INTO app_settings(key,value) VALUES('base_currency',$1) ON CONFLICT(key) DO UPDATE SET value=$1, updated_at=NOW()", [req.body]);
+  res.json({ ok: true });
+});
+
+// ----- Extraction -----
+app.post("/api/invoices/extract", upload.single("file"), async (req, res) => {
+  try {
+    const file = req.file!;
+    const result = await runExtractor(file.path);
+    // garder chemin/mime
+    result.source_file_path = file.path;
+    result.source_mime = file.mimetype;
+    res.json(result);
+  } catch (e:any) { res.status(400).json({ error: e.message }); }
+});
+
+// ----- CRUD fournisseurs -----
+app.get("/api/suppliers", async (req, res) => {
+  const search = (req.query.q as string) || "";
+  const rows = await q(
+    search
+      ? "SELECT * FROM suppliers WHERE merged_into IS NULL AND name ILIKE '%'||$1||'%' ORDER BY name LIMIT 200"
+      : "SELECT * FROM suppliers WHERE merged_into IS NULL ORDER BY name LIMIT 200",
+    search ? [search] : []
+  );
+  res.json(rows);
+});
+app.post("/api/suppliers", async (req, res) => {
+  const { name, tax_id, email, phone, address, city, country, iban, bic, rib, website, notes } = req.body;
+  const rows = await q(
+    `INSERT INTO suppliers(name,tax_id,email,phone,address,city,country,iban,bic,rib,website,notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+    [name, tax_id, email, phone, address, city, country, iban, bic, rib, website, notes]
+  );
+  res.json(rows[0]);
+});
+app.post("/api/merge/suppliers", async (req,res) => {
+  const { source_ids, target_id } = req.body;
+  await q("UPDATE suppliers SET merged_into=$1 WHERE id = ANY($2::uuid[])", [target_id, source_ids]);
+  await q("UPDATE invoices SET supplier_id=$1 WHERE supplier_id = ANY($2::uuid[])", [target_id, source_ids]);
+  await q("UPDATE invoice_lines SET supplier_id=$1 WHERE supplier_id = ANY($2::uuid[])", [target_id, source_ids]);
+  res.json({ ok:true });
+});
+
+// ----- Enregistrement facture (après édition côté UI) -----
+async function rateToTnd(code:string|null, on: string|null){
+  if(!code || !on) return 1;
+  const r = await q<{fx: string}>("SELECT fx_rate_to_tnd($1,$2)::text AS fx", [code, on]);
+  return parseFloat(r[0]?.fx || "1");
+}
+
+app.post("/api/invoices", async (req, res) => {
+  const b = req.body; // contient supplier_id choisi, champs édités, lines[], source_file_path/mime etc.
+  const fx = await rateToTnd(b.currency, b.invoice_date);
+  const amount_ttc_tnd = b.amount_ttc ? (Number(b.amount_ttc) * fx) : null;
+
+  const rows = await q(
+    `INSERT INTO invoices(
+      supplier_id, number, invoice_date, currency, amount_ht, amount_tva, amount_ttc, amount_ttc_tnd,
+      payment_terms, payment_method, iban, bic, rib, buyer_name, buyer_tax_id, due_date, status,
+      source_file_path, source_mime, model, raw_json
+    ) VALUES(
+      $1,$2,$3,$4,$5,$6,$7,$8,
+      $9,$10,$11,$12,$13,$14,$15,$16,$17,
+      $18,$19,$20,$21
+    ) RETURNING *`,
+    [
+      b.supplier_id, b.invoice_number, b.invoice_date, b.currency, b.amount_ht, b.amount_tva, b.amount_ttc, amount_ttc_tnd,
+      b.payment_terms, b.payment_method, b.iban, b.bic, b.rib, b.buyer_name, b.buyer_tax_id, b.due_date, b.status || 'extrait',
+      b.source_file_path, b.source_mime, b.model, b.raw_json || b
+    ]
+  );
+  const inv = rows[0];
+
+  // Lignes
+  if (Array.isArray(b.lines)) {
+    for (const li of b.lines) {
+      await q(
+        `INSERT INTO invoice_lines(invoice_id, article_id, description, qty, unit, unit_price, total, supplier_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [inv.id, li.article_id || null, li.description, li.qty, li.unit, li.unit_price, li.total, inv.supplier_id]
+      );
+    }
+  }
+  res.json(inv);
+});
+
+// Liste + filtres
+app.get("/api/invoices", async (req, res) => {
+  const { status, supplier_id, from, to, q:search } = req.query as any;
+  let sql = `SELECT * FROM invoices WHERE 1=1`;
+  const p:any[] = [];
+  if (status){ p.push(status); sql += ` AND status=$${p.length}`; }
+  if (supplier_id){ p.push(supplier_id); sql += ` AND supplier_id=$${p.length}`; }
+  if (from){ p.push(from); sql += ` AND invoice_date >= $${p.length}`; }
+  if (to){ p.push(to); sql += ` AND invoice_date <= $${p.length}`; }
+  if (search){ p.push(`%${search}%`); sql += ` AND (number ILIKE $${p.length} OR buyer_name ILIKE $${p.length})`; }
+  sql += ` ORDER BY invoice_date DESC NULLS LAST LIMIT 500`;
+  res.json(await q(sql, p));
+});
+
+// Détail facture + lignes
+app.get("/api/invoices/:id", async (req,res)=>{
+  const [inv] = await q("SELECT * FROM invoices WHERE id=$1",[req.params.id]);
+  const lines = await q("SELECT * FROM invoice_lines WHERE invoice_id=$1",[req.params.id]);
+  res.json({ invoice: inv, lines });
+});
+
+// Changement de statut
+app.patch("/api/invoices/:id/status", async (req,res)=>{
+  const { status } = req.body;
+  const r = await q("UPDATE invoices SET status=$1 WHERE id=$2 RETURNING *",[status, req.params.id]);
+  res.json(r[0]);
+});
+
+// Articles & fusion
+app.get("/api/articles", async (_req,res)=>{
+  res.json(await q("SELECT * FROM articles WHERE merged_into IS NULL ORDER BY label LIMIT 500"));
+});
+app.post("/api/articles", async (req,res)=>{
+  const { sku, label, unit } = req.body;
+  const r = await q("INSERT INTO articles(sku,label,unit) VALUES($1,$2,$3) RETURNING *",[sku,label,unit]);
+  res.json(r[0]);
+});
+app.post("/api/merge/articles", async (req,res)=>{
+  const { source_ids, target_id } = req.body;
+  await q("UPDATE articles SET merged_into=$1 WHERE id = ANY($2::uuid[])", [target_id, source_ids]);
+  await q("UPDATE invoice_lines SET article_id=$1 WHERE article_id = ANY($2::uuid[])", [target_id, source_ids]);
+  res.json({ ok:true });
+});
+
+// Stats articles (prix/qty par fournisseur)
+app.get("/api/articles/stats", async (req,res)=>{
+  const { from, to, article_id } = req.query as any;
+  let sql = `
+    SELECT il.article_id, il.supplier_id, s.name AS supplier_name,
+           avg(NULLIF(il.unit_price,0)) AS unit_price_avg,
+           min(NULLIF(il.unit_price,0)) AS unit_price_min,
+           max(NULLIF(il.unit_price,0)) AS unit_price_max,
+           sum(COALESCE(il.qty,0)) AS qty_sum,
+           count(*) AS lines_count
+    FROM invoice_lines il
+    LEFT JOIN suppliers s ON s.id = il.supplier_id
+    LEFT JOIN invoices i ON i.id = il.invoice_id
+    WHERE 1=1`;
+  const p:any[] = [];
+ 

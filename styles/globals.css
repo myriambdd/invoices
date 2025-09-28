@@ -1,0 +1,139 @@
+/* styles/globals.css
+   Dual-theme tokens (Tailwind v4-friendly)
+   Light = crisp blues/teals; Dark = deep indigo/cyan
+*/
+
+:root {
+  /* Base */
+  --background: 255 100% 99%;
+  --foreground: 240 10% 10%;
+
+  /* Surfaces */
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 10%;
+
+  /* UI chrome */
+  --border: 220 15% 88%;
+  --input: 220 15% 88%;
+  --ring: 210 90% 45%;
+
+  /* Brand / accent set */
+  --primary: 210 90% 45%;
+  /* sapphire */
+  --primary-foreground: 210 100% 98%;
+  --secondary: 190 70% 42%;
+  /* teal */
+  --secondary-foreground: 180 100% 98%;
+  --accent: 265 75% 55%;
+  /* violet */
+  --accent-foreground: 260 100% 98%;
+
+  /* States */
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 100% 98%;
+  --success: 155 60% 40%;
+  --success-foreground: 140 100% 98%;
+  --warning: 35 95% 50%;
+  --warning-foreground: 48 100% 6%;
+  --info: 198 90% 45%;
+  --info-foreground: 200 100% 98%;
+
+  /* Muted / subtle */
+  --muted: 220 20% 96%;
+  --muted-foreground: 220 12% 35%;
+
+  /* Radii (optional) */
+  --radius: 1rem;
+}
+
+.dark {
+  /* Base */
+  --background: 240 23% 10%;
+  --foreground: 220 20% 96%;
+
+  /* Surfaces */
+  --card: 240 21% 14%;
+  --card-foreground: 220 20% 96%;
+  --popover: 240 21% 14%;
+  --popover-foreground: 220 20% 96%;
+
+  /* UI chrome */
+  --border: 240 13% 22%;
+  --input: 240 13% 22%;
+  --ring: 195 95% 60%;
+
+  /* Brand / accent set */
+  --primary: 195 95% 60%;
+  /* bright cyan for dark bg */
+  --primary-foreground: 195 100% 12%;
+  --secondary: 210 90% 63%;
+  /* blue */
+  --secondary-foreground: 210 100% 12%;
+  --accent: 265 85% 70%;
+  /* neon violet */
+  --accent-foreground: 265 100% 12%;
+
+  /* States */
+  --destructive: 0 85% 60%;
+  --destructive-foreground: 0 100% 12%;
+  --success: 155 65% 55%;
+  --success-foreground: 150 100% 8%;
+  --warning: 38 95% 60%;
+  --warning-foreground: 48 100% 8%;
+  --info: 198 95% 65%;
+  --info-foreground: 200 100% 10%;
+
+  /* Muted / subtle */
+  --muted: 240 15% 18%;
+  --muted-foreground: 220 15% 75%;
+
+  --radius: 1rem;
+}
+
+/* Map tokens to Tailwind-like custom properties (optional convenience) */
+:root,
+.dark {
+  --tw-border: hsl(var(--border));
+  --tw-ring: hsl(var(--ring));
+  --tw-background: hsl(var(--background));
+  --tw-foreground: hsl(var(--foreground));
+
+  --tw-card: hsl(var(--card));
+  --tw-card-foreground: hsl(var(--card-foreground));
+  --tw-popover: hsl(var(--popover));
+  --tw-popover-foreground: hsl(var(--popover-foreground));
+
+  --tw-primary: hsl(var(--primary));
+  --tw-primary-foreground: hsl(var(--primary-foreground));
+  --tw-secondary: hsl(var(--secondary));
+  --tw-secondary-foreground: hsl(var(--secondary-foreground));
+  --tw-accent: hsl(var(--accent));
+  --tw-accent-foreground: hsl(var(--accent-foreground));
+
+  --tw-muted: hsl(var(--muted));
+  --tw-muted-foreground: hsl(var(--muted-foreground));
+
+  --tw-destructive: hsl(var(--destructive));
+  --tw-destructive-foreground: hsl(var(--destructive-foreground));
+  --tw-success: hsl(var(--success));
+  --tw-success-foreground: hsl(var(--success-foreground));
+  --tw-warning: hsl(var(--warning));
+  --tw-warning-foreground: hsl(var(--warning-foreground));
+  --tw-info: hsl(var(--info));
+  --tw-info-foreground: hsl(var(--info-foreground));
+}
+
+/* Optional: subtle hero gradient background respecting theme */
+body {
+  background-image:
+    radial-gradient(60rem 30rem at 120% -10%, hsl(210 90% 90% / 0.35), transparent),
+    radial-gradient(50rem 25rem at -20% 10%, hsl(265 85% 88% / 0.3), transparent);
+}
+
+.dark body {
+  background-image:
+    radial-gradient(60rem 30rem at 120% -10%, hsl(198 95% 20% / 0.35), transparent),
+    radial-gradient(50rem 25rem at -20% 10%, hsl(265 85% 28% / 0.3), transparent);
+}

@@ -1,0 +1,14 @@
+
+python-dotenv>=0.19.0
+python-dateutil>=2.8.0
+# PDF/image parsing
+pymupdf==1.24.10     
+pillow==10.4.0
+
+# Dates & utils
+python-dateutil==2.9.0.post0
+pydantic==2.8.2
+
+# If you call Gemini/OpenAI etc from Python, add those here too:
+google-generativeai==0.7.2
+openai==1.44.0
