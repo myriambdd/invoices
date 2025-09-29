@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "supplier_id, total_amount, and currency_id are required" }, { status: 400 })
     }
 
-    // Start transaction
+    // Create invoice
     const [invoice] = await sql`
       INSERT INTO invoices (
         invoice_number, supplier_id, issue_date, due_date, total_amount,

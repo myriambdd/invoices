@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import path from "path"
 import { PythonInvoiceExtractor } from "@/lib/python-integration"
-import { withClient } from "@/lib/database"
+import { sql } from "@/lib/db"
 
-export const runtime = "nodejs" // pas edge, on spawn un process Python
+export const runtime = "nodejs"
 
 type Extracted = {
   supplier?: {
@@ -23,7 +23,7 @@ type Extracted = {
 export async function POST(request: NextRequest) {
   try {
     const url = new URL(request.url)
-    const shouldSave = url.searchParams.get("save") === "1"  // ?save=1 => persist
+    const shouldSave = url.searchParams.get("save") === "1"
 
     const formData = await request.formData()
     const file = formData.get("file") as File | null
@@ -65,147 +65,104 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * Persistance via node-postgres (pg) avec transaction.
- * - upsert supplier par tax_id si dispo, sinon fallback name+email
- * - insert invoice + items
- * - reminder si due_date
- */
 async function persistExtraction(extracted: Extracted) {
   const s = extracted.supplier ?? {}
   const inv = extracted.invoice ?? {}
   const items = Array.isArray(extracted.items) ? extracted.items : []
 
-  return withClient(async (client) => {
-    await client.query("BEGIN")
+  try {
+    // 1) Supplier upsert
+    let supplierId: string | null = null
 
-    try {
-      // 1) Supplier upsert (cas 1: tax_id présent)
-      let supplierId: string | null = null
-
-      if (s.tax_id) {
-        const upsertByTaxId = await client.query<{
-          id: string
-        }>(
-          `
-          INSERT INTO supplier (name, tax_id, email, phone, address, iban, bic, rib)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-          ON CONFLICT (tax_id)
-          DO UPDATE SET
-            name = EXCLUDED.name,
-            email = EXCLUDED.email,
-            phone = EXCLUDED.phone,
-            address = EXCLUDED.address,
-            iban = EXCLUDED.iban,
-            bic = EXCLUDED.bic,
-            rib = EXCLUDED.rib,
-            updated_at = NOW()
-          RETURNING id
-          `,
-          [
-            s.name ?? "Unknown supplier",
-            s.tax_id,
-            s.email ?? null,
-            s.phone ?? null,
-            s.address ?? null,
-            s.iban ?? null,
-            s.bic ?? null,
-            s.rib ?? null,
-          ]
-        )
-        supplierId = upsertByTaxId.rows[0].id
-      } else {
-        // 2) Pas de tax_id → on essaie name+email
-        const existing = await client.query<{ id: string }>(
-          `SELECT id FROM supplier WHERE name = $1 AND COALESCE(email,'') = COALESCE($2,'') LIMIT 1`,
-          [s.name ?? "Unknown supplier", s.email ?? null]
-        )
-        if (existing.rowCount) {
-          supplierId = existing.rows[0].id
-          await client.query(
-            `UPDATE supplier
-             SET phone = COALESCE($2, phone),
-                 address = COALESCE($3, address),
-                 iban = COALESCE($4, iban),
-                 bic = COALESCE($5, bic),
-                 rib = COALESCE($6, rib),
-                 updated_at = NOW()
-             WHERE id = $1`,
-            [supplierId, s.phone ?? null, s.address ?? null, s.iban ?? null, s.bic ?? null, s.rib ?? null]
-          )
-        } else {
-          const inserted = await client.query<{ id: string }>(
-            `INSERT INTO supplier (name, email, phone, address, iban, bic, rib)
-             VALUES ($1,$2,$3,$4,$5,$6,$7)
-             RETURNING id`,
-            [
-              s.name ?? "Unknown supplier",
-              s.email ?? null,
-              s.phone ?? null,
-              s.address ?? null,
-              s.iban ?? null,
-              s.bic ?? null,
-              s.rib ?? null,
-            ]
-          )
-          supplierId = inserted.rows[0].id
-        }
-      }
-
-      // 3) Invoice insert
-      const invRes = await client.query<{ id: string }>(
-        `INSERT INTO invoice
-           (supplier_id, number, date, due_date, payment_terms, currency, subtotal, tax_amount, total_amount, status)
-         VALUES
-           ($1,$2,$3,$4,$5,$6,$7,$8,$9,'extracted')
-         RETURNING id`,
-        [
-          supplierId,
-          inv.number ?? null,
-          inv.date ?? null,
-          inv.due_date ?? null,
-          inv.payment_terms ?? null,
-          inv.currency ?? null,
-          inv.subtotal ?? null,
-          inv.tax_amount ?? null,
-          inv.total_amount ?? null,
-        ]
-      )
-      const invoiceId = invRes.rows[0].id
-
-      // 4) Invoice items
-      if (items.length) {
-        const text = `
-          INSERT INTO invoice_item (invoice_id, description, quantity, unit_price, total_price, tax_rate)
-          VALUES ($1,$2,$3,$4,$5,$6)
+    if (s.tax_id) {
+      const [supplier] = await sql`
+        INSERT INTO suppliers (name, tax_id, email, phone, address, iban, bic, rib)
+        VALUES (${s.name ?? "Unknown supplier"}, ${s.tax_id}, ${s.email ?? null}, ${s.phone ?? null}, 
+                ${s.address ?? null}, ${s.iban ?? null}, ${s.bic ?? null}, ${s.rib ?? null})
+        ON CONFLICT (tax_id)
+        DO UPDATE SET
+          name = EXCLUDED.name,
+          email = EXCLUDED.email,
+          phone = EXCLUDED.phone,
+          address = EXCLUDED.address,
+          iban = EXCLUDED.iban,
+          bic = EXCLUDED.bic,
+          rib = EXCLUDED.rib,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING id
+      `
+      supplierId = supplier.id
+    } else {
+      // Try to find by name and email
+      const existing = await sql`
+        SELECT id FROM suppliers 
+        WHERE name = ${s.name ?? "Unknown supplier"} 
+        AND COALESCE(email,'') = COALESCE(${s.email ?? null},'') 
+        LIMIT 1
+      `
+      
+      if (existing.length > 0) {
+        supplierId = existing[0].id
+        await sql`
+          UPDATE suppliers
+          SET phone = COALESCE(${s.phone ?? null}, phone),
+              address = COALESCE(${s.address ?? null}, address),
+              iban = COALESCE(${s.iban ?? null}, iban),
+              bic = COALESCE(${s.bic ?? null}, bic),
+              rib = COALESCE(${s.rib ?? null}, rib),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${supplierId}
         `
-        for (const it of items) {
-          await client.query(text, [
-            invoiceId,
-            it.description ?? null,
-            it.quantity ?? null,
-            it.unit_price ?? null,
-            it.total_price ?? null,
-            it.tax_rate ?? null,
-          ])
-        }
+      } else {
+        const [newSupplier] = await sql`
+          INSERT INTO suppliers (name, email, phone, address, iban, bic, rib)
+          VALUES (${s.name ?? "Unknown supplier"}, ${s.email ?? null}, ${s.phone ?? null}, 
+                  ${s.address ?? null}, ${s.iban ?? null}, ${s.bic ?? null}, ${s.rib ?? null})
+          RETURNING id
+        `
+        supplierId = newSupplier.id
       }
-
-      // 5) Reminder si due_date
-      if (inv.due_date) {
-        await client.query(
-          `INSERT INTO payment_reminder (invoice_id, due_date, channel, status)
-           VALUES ($1, $2, 'email', 'pending')`,
-          [invoiceId, inv.due_date]
-        )
-      }
-
-      await client.query("COMMIT")
-
-      return { supplierId, invoiceId, items: items.length }
-    } catch (e) {
-      await client.query("ROLLBACK")
-      throw e
     }
-  })
+
+    // 2) Get TND currency ID
+    const [tndCurrency] = await sql`
+      SELECT id FROM currencies WHERE code = 'TND' LIMIT 1
+    `
+
+    // 3) Invoice insert
+    const [invoice] = await sql`
+      INSERT INTO invoices
+        (supplier_id, invoice_number, issue_date, due_date, payment_terms, 
+         total_amount, currency_id, status, extracted_data)
+      VALUES
+        (${supplierId}, ${inv.number ?? null}, ${inv.date ?? null}, ${inv.due_date ?? null}, 
+         ${inv.payment_terms ?? null}, ${inv.total_amount ?? null}, ${tndCurrency?.id ?? null}, 
+         'extracted', ${JSON.stringify(extracted)})
+      RETURNING id
+    `
+
+    // 4) Invoice items
+    if (items.length) {
+      for (const it of items) {
+        await sql`
+          INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, tax_rate)
+          VALUES (${invoice.id}, ${it.description ?? null}, ${it.quantity ?? null}, 
+                  ${it.unit_price ?? null}, ${it.total_price ?? null}, ${it.tax_rate ?? null})
+        `
+      }
+    }
+
+    // 5) Reminder if due_date
+    if (inv.due_date) {
+      await sql`
+        INSERT INTO payment_reminders (invoice_id, reminder_date, reminder_type, days_offset)
+        VALUES (${invoice.id}, ${inv.due_date}, 'on_due', 0)
+      `
+    }
+
+    return { supplierId, invoiceId: invoice.id, items: items.length }
+  } catch (error) {
+    console.error("Error persisting extraction:", error)
+    throw error
+  }
 }
