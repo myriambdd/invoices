@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { MoreHorizontal } from "lucide-react"
+import { CurrencyDisplay } from "@/components/currency-display"
 
 const recentInvoices = [
   {
@@ -60,9 +61,10 @@ export function RecentInvoices() {
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className="font-medium">
-                    {invoice.amount} {invoice.currency}
-                  </p>
+                  <CurrencyDisplay 
+                    amount={parseFloat(invoice.amount.replace(',', ''))} 
+                    currency={invoice.currency}
+                  />
                   <p className="text-sm text-muted-foreground">Due: {invoice.dueDate}</p>
                 </div>
                 <Badge className={statusStyles[invoice.status]} variant="outline">

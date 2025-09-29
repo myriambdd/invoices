@@ -1,13 +1,13 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, Plus, Settings } from "lucide-react"
-import { useState, useEffect } from "react"
+import { Trash2, Plus, Settings, RefreshCw } from "lucide-react"
 
 interface Currency {
   id: string
@@ -19,8 +19,10 @@ interface Currency {
 
 interface ExchangeRate {
   id: string
-  from_currency: string
-  to_currency: string
+  from_currency_code: string
+  to_currency_code: string
+  from_currency_symbol: string
+  to_currency_symbol: string
   rate: number
   updated_at: string
 }
@@ -28,7 +30,7 @@ interface ExchangeRate {
 export default function SettingsPage() {
   const [currencies, setCurrencies] = useState<Currency[]>([])
   const [exchangeRates, setExchangeRates] = useState<ExchangeRate[]>([])
-  const [newRate, setNewRate] = useState({ from: "", to: "", rate: "" })
+  const [newRate, setNewRate] = useState({ from: "", to: "TND", rate: "" })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -37,13 +39,18 @@ export default function SettingsPage() {
 
   const fetchData = async () => {
     try {
-      const [currenciesRes, ratesRes] = await Promise.all([fetch("/api/currencies"), fetch("/api/exchange-rates")])
+      const [currenciesRes, ratesRes] = await Promise.all([
+        fetch("/api/currencies"),
+        fetch("/api/exchange-rates")
+      ])
 
-      const currenciesData = await currenciesRes.json()
-      const ratesData = await ratesRes.json()
+      if (currenciesRes.ok && ratesRes.ok) {
+        const currenciesData = await currenciesRes.json()
+        const ratesData = await ratesRes.json()
 
-      setCurrencies(currenciesData)
-      setExchangeRates(ratesData)
+        setCurrencies(currenciesData)
+        setExchangeRates(ratesData)
+      }
     } catch (error) {
       console.error("Error fetching data:", error)
     } finally {
@@ -61,12 +68,12 @@ export default function SettingsPage() {
         body: JSON.stringify({
           from_currency: newRate.from,
           to_currency: newRate.to,
-          rate: Number.parseFloat(newRate.rate),
+          rate: parseFloat(newRate.rate),
         }),
       })
 
       if (response.ok) {
-        setNewRate({ from: "", to: "", rate: "" })
+        setNewRate({ from: "", to: "TND", rate: "" })
         fetchData()
       }
     } catch (error) {
@@ -89,6 +96,7 @@ export default function SettingsPage() {
   }
 
   const baseCurrency = currencies.find((c) => c.is_base)
+  const nonBaseCurrencies = currencies.filter((c) => !c.is_base)
 
   if (loading) {
     return (
@@ -100,20 +108,26 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Settings className="h-6 w-6" />
-        <h1 className="text-3xl font-bold">Settings</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Settings className="h-6 w-6" />
+          <h1 className="text-3xl font-bold">Settings</h1>
+        </div>
+        <Button onClick={fetchData} variant="outline">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh Rates
+        </Button>
       </div>
 
       {/* Base Currency */}
       <Card>
         <CardHeader>
           <CardTitle>Base Currency</CardTitle>
-          <CardDescription>All amounts will be converted to this currency for reporting</CardDescription>
+          <CardDescription>All amounts will be converted to this currency for display</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-lg px-4 py-2">
+            <Badge variant="default" className="text-lg px-4 py-2">
               {baseCurrency?.code} - {baseCurrency?.name}
             </Badge>
             <span className="text-muted-foreground">({baseCurrency?.symbol})</span>
@@ -124,8 +138,8 @@ export default function SettingsPage() {
       {/* Exchange Rates */}
       <Card>
         <CardHeader>
-          <CardTitle>Exchange Rates</CardTitle>
-          <CardDescription>Manage conversion rates for different currencies</CardDescription>
+          <CardTitle>Exchange Rates to TND</CardTitle>
+          <CardDescription>Set conversion rates from other currencies to Tunisian Dinar</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Add New Rate */}
@@ -137,13 +151,11 @@ export default function SettingsPage() {
                   <SelectValue placeholder="Select currency" />
                 </SelectTrigger>
                 <SelectContent>
-                  {currencies
-                    .filter((c) => !c.is_base)
-                    .map((currency) => (
-                      <SelectItem key={currency.id} value={currency.code}>
-                        {currency.code} - {currency.name}
-                      </SelectItem>
-                    ))}
+                  {nonBaseCurrencies.map((currency) => (
+                    <SelectItem key={currency.id} value={currency.code}>
+                      {currency.code} - {currency.name} ({currency.symbol})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -151,14 +163,10 @@ export default function SettingsPage() {
               <Label htmlFor="to-currency">To Currency</Label>
               <Select value={newRate.to} onValueChange={(value) => setNewRate((prev) => ({ ...prev, to: value }))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select currency" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {currencies.map((currency) => (
-                    <SelectItem key={currency.id} value={currency.code}>
-                      {currency.code} - {currency.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="TND">TND - Tunisian Dinar (د.ت)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -174,7 +182,7 @@ export default function SettingsPage() {
               />
             </div>
             <div className="flex items-end">
-              <Button onClick={handleAddRate} className="w-full">
+              <Button onClick={handleAddRate} className="w-full" disabled={!newRate.from || !newRate.rate}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Rate
               </Button>
@@ -186,10 +194,16 @@ export default function SettingsPage() {
             {exchangeRates.map((rate) => (
               <div key={rate.id} className="flex items-center justify-between p-3 border rounded-lg">
                 <div className="flex items-center gap-4">
-                  <Badge variant="outline">{rate.from_currency}</Badge>
-                  <span>→</span>
-                  <Badge variant="outline">{rate.to_currency}</Badge>
-                  <span className="font-mono text-lg">{rate.rate.toFixed(4)}</span>
+                  <Badge variant="outline" className="font-mono">
+                    1 {rate.from_currency_code}
+                  </Badge>
+                  <span>=</span>
+                  <Badge variant="outline" className="font-mono">
+                    {rate.rate.toFixed(4)} TND
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    ({rate.from_currency_symbol} → د.ت)
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
@@ -209,8 +223,39 @@ export default function SettingsPage() {
           </div>
 
           {exchangeRates.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">No exchange rates configured yet</div>
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No exchange rates configured yet</p>
+              <p className="text-sm mt-1">Add exchange rates to enable currency conversion</p>
+            </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Currency List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Available Currencies</CardTitle>
+          <CardDescription>Currencies supported by the system</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {currencies.map((currency) => (
+              <div key={currency.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Badge variant={currency.is_base ? "default" : "outline"}>
+                    {currency.code}
+                  </Badge>
+                  <div>
+                    <p className="font-medium">{currency.name}</p>
+                    <p className="text-sm text-muted-foreground">{currency.symbol}</p>
+                  </div>
+                </div>
+                {currency.is_base && (
+                  <Badge variant="secondary">Base</Badge>
+                )}
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>

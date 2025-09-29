@@ -252,18 +252,11 @@ export function InvoiceDetails({ invoiceId }: InvoiceDetailsProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Amount</p>
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-bold text-lg">
-                      {invoice.total_amount.toLocaleString()} {invoice.currency_code}
-                    </span>
-                  </div>
-                  {invoice.total_amount_tnd && invoice.currency_code !== "TND" && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      ≈ {invoice.total_amount_tnd.toLocaleString()} TND
-                      {invoice.exchange_rate && <span className="ml-2">(Rate: {invoice.exchange_rate})</span>}
-                    </p>
-                  )}
+                  <CurrencyDisplay 
+                    amount={invoice.total_amount} 
+                    currency={invoice.currency_code}
+                    className="flex items-center gap-2"
+                  />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Payment Terms</p>
@@ -303,11 +296,19 @@ export function InvoiceDetails({ invoiceId }: InvoiceDetailsProps) {
                         <TableCell className="font-medium">{item.description}</TableCell>
                         <TableCell className="text-right">{item.quantity}</TableCell>
                         <TableCell className="text-right">
-                          {item.unit_price.toLocaleString()} {invoice.currency_code}
+                          <CurrencyDisplay 
+                            amount={item.unit_price} 
+                            currency={invoice.currency_code}
+                            showOriginalOnly={true}
+                          />
                         </TableCell>
                         <TableCell className="text-right">{item.tax_rate}%</TableCell>
                         <TableCell className="text-right font-medium">
-                          {item.total_price.toLocaleString()} {invoice.currency_code}
+                          <CurrencyDisplay 
+                            amount={item.total_price} 
+                            currency={invoice.currency_code}
+                            showOriginalOnly={true}
+                          />
                         </TableCell>
                       </TableRow>
                     ))}

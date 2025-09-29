@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Calendar, AlertTriangle } from "lucide-react"
+import { CurrencyDisplay } from "@/components/currency-display"
 
 const upcomingPayments = [
   {
@@ -53,9 +54,10 @@ export function UpcomingPayments() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-medium">
-                  {payment.amount} {payment.currency}
-                </p>
+                <CurrencyDisplay 
+                  amount={parseFloat(payment.amount.replace(',', ''))} 
+                  currency={payment.currency}
+                />
                 <div className="flex items-center gap-2">
                   <p className="text-sm text-muted-foreground">Due: {payment.dueDate}</p>
                   <Badge variant={payment.daysUntilDue <= 3 ? "destructive" : "secondary"}>

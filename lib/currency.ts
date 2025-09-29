@@ -1,11 +1,15 @@
 interface ExchangeRate {
-  from_currency: string
-  to_currency: string
+  id: string
+  from_currency_code: string
+  to_currency_code: string
   rate: number
+  updated_at: string
 }
 
 interface Currency {
+  id: string
   code: string
+  name: string
   symbol: string
   is_base: boolean
 }
@@ -14,61 +18,43 @@ export class CurrencyConverter {
   private static exchangeRates: ExchangeRate[] = []
   private static currencies: Currency[] = []
   private static baseCurrency: Currency | null = null
+  private static initialized = false
 
   static async initialize() {
-    try {
-      const [ratesRes, currenciesRes] = await Promise.all([fetch("/api/exchange-rates"), fetch("/api/currencies")])
+    if (this.initialized) return
 
-      this.exchangeRates = await ratesRes.json()
-      this.currencies = await currenciesRes.json()
-      this.baseCurrency = this.currencies.find((c) => c.is_base) || null
+    try {
+      const [ratesRes, currenciesRes] = await Promise.all([
+        fetch("/api/exchange-rates"),
+        fetch("/api/currencies")
+      ])
+
+      if (ratesRes.ok && currenciesRes.ok) {
+        this.exchangeRates = await ratesRes.json()
+        this.currencies = await currenciesRes.json()
+        this.baseCurrency = this.currencies.find((c) => c.is_base) || null
+        this.initialized = true
+      }
     } catch (error) {
       console.error("Failed to initialize currency converter:", error)
     }
   }
 
-  static convertToBase(amount: number, fromCurrency: string): number {
-    if (!this.baseCurrency || fromCurrency === this.baseCurrency.code) {
+  static convertToTND(amount: number, fromCurrency: string): number {
+    if (!this.baseCurrency || fromCurrency === "TND") {
       return amount
     }
 
     const rate = this.exchangeRates.find(
-      (r) => r.from_currency === fromCurrency && r.to_currency === this.baseCurrency!.code,
+      (r) => r.from_currency_code === fromCurrency && r.to_currency_code === "TND"
     )
 
     if (!rate) {
-      console.warn(`No exchange rate found for ${fromCurrency} to ${this.baseCurrency.code}`)
+      console.warn(`No exchange rate found for ${fromCurrency} to TND`)
       return amount
     }
 
     return amount * rate.rate
-  }
-
-  static convertFromBase(amount: number, toCurrency: string): number {
-    if (!this.baseCurrency || toCurrency === this.baseCurrency.code) {
-      return amount
-    }
-
-    const rate = this.exchangeRates.find(
-      (r) => r.from_currency === this.baseCurrency!.code && r.to_currency === toCurrency,
-    )
-
-    if (!rate) {
-      console.warn(`No exchange rate found for ${this.baseCurrency.code} to ${toCurrency}`)
-      return amount
-    }
-
-    return amount * rate.rate
-  }
-
-  static convert(amount: number, fromCurrency: string, toCurrency: string): number {
-    if (fromCurrency === toCurrency) {
-      return amount
-    }
-
-    // Convert to base currency first, then to target currency
-    const baseAmount = this.convertToBase(amount, fromCurrency)
-    return this.convertFromBase(baseAmount, toCurrency)
   }
 
   static formatAmount(amount: number, currency: string): string {
@@ -76,12 +62,16 @@ export class CurrencyConverter {
     const symbol = currencyInfo?.symbol || currency
 
     return new Intl.NumberFormat("fr-TN", {
-      style: "currency",
-      currency: currency,
-      currencyDisplay: "symbol",
-    })
-      .format(amount)
-      .replace(currency, symbol)
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount) + " " + symbol
+  }
+
+  static formatAmountTND(amount: number): string {
+    return new Intl.NumberFormat("fr-TN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount) + " TND"
   }
 
   static getBaseCurrency(): Currency | null {
@@ -94,5 +84,10 @@ export class CurrencyConverter {
 
   static getExchangeRates(): ExchangeRate[] {
     return this.exchangeRates
+  }
+
+  static getCurrencySymbol(code: string): string {
+    const currency = this.currencies.find((c) => c.code === code)
+    return currency?.symbol || code
   }
 }
