@@ -6,19 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-  Building,
-  Mail,
-  Phone,
-  MapPin,
-  CreditCard,
-  Landmark,
-  FileText,
-  TrendingUp,
-  DollarSign,
-  Edit,
-  BarChart3,
-} from "lucide-react"
+import { Building, Mail, Phone, MapPin, CreditCard, Landmark, FileText, TrendingUp, DollarSign, CreditCard as Edit, ChartBar as BarChart3 } from "lucide-react"
 import Link from "next/link"
 import type { Supplier, Invoice } from "@/lib/db"
 

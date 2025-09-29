@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Save, Edit3, Plus, Trash2, FileText, Building, Calendar, DollarSign, Loader2 } from "lucide-react"
+import { Save, CreditCard as Edit3, Plus, Trash2, FileText, Building, Calendar, DollarSign, Loader as Loader2 } from "lucide-react"
 import type { ExtractedInvoiceData } from "@/lib/python-integration"
 import type { Supplier, Currency } from "@/lib/db"
 
@@ -123,9 +123,6 @@ export function InvoicePreview({ file, onClose }: InvoicePreviewProps) {
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      // Get currency for conversion
-      const selectedCurrency = currencies.find(c => c.id === selectedCurrencyId)
-      
       // Create invoice
       const invoiceData = {
         invoice_number: extractedData.invoice?.number,
@@ -134,8 +131,6 @@ export function InvoicePreview({ file, onClose }: InvoicePreviewProps) {
         due_date: extractedData.invoice?.due_date,
         total_amount: extractedData.invoice?.total_amount,
         currency_id: selectedCurrencyId,
-        total_amount_tnd: extractedData.invoice?.total_amount, // Will be converted by backend
-        exchange_rate: 1, // Will be calculated by backend
         payment_terms: extractedData.invoice?.payment_terms,
         original_file_path: file.filePath,
         extracted_data: extractedData,

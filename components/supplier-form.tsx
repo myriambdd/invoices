@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Save, Loader2, Building, Mail, Phone, MapPin, CreditCard, Landmark } from "lucide-react"
+import { Save, Loader as Loader2, Building, Mail, Phone, MapPin, CreditCard, Landmark } from "lucide-react"
 import type { Supplier } from "@/lib/db"
 
 interface SupplierFormProps {
