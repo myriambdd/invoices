@@ -198,8 +198,11 @@ export function SuppliersTable() {
                         <DropdownMenuItem asChild>
                           <Link href={`/suppliers/${supplier.id}`}>View Details</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/suppliers/${supplier.id}/edit`}>Edit</Link>
+                        <DropdownMenuItem onClick={() => window.location.href = `/suppliers/${supplier.id}/edit`}>
+                          Edit Supplier
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => window.location.href = `/invoices?supplier_id=${supplier.id}`}>
+                          View Invoices
                         </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(supplier.id)}>
                           Delete
