@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { MoreHorizontal, FileText, Building, Calendar, DollarSign, Eye, Edit, Trash2, Download, CheckCircle } from "lucide-react"
+import { MoveHorizontal as MoreHorizontal, FileText, Building, Calendar, DollarSign, Eye, CreditCard as Edit, Trash2, Download, CircleCheck as CheckCircle } from "lucide-react"om "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 
@@ -251,12 +251,17 @@ export function InvoicesTable() {
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => updateInvoiceStatus(invoice.id, invoice.status === "paid" ? "pending" : "paid")}>
-                            <CheckCircle className="w-4 h-4 mr-2" />
+                            <Edit className="w-4 h-4 mr-2" />
                             {invoice.status === "paid" ? "Mark Unpaid" : "Mark Paid"}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => {
                             // Create a download link for the original file
-                            window.open(`/api/invoices/${invoice.id}/download`, '_blank')
+                            const link = document.createElement('a')
+                            link.href = `/api/invoices/${invoice.id}/download`
+                            link.download = `invoice-${invoice.invoice_number || invoice.id}.pdf`
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
                           }}>
                             <Download className="w-4 h-4 mr-2" />
                             Download PDF

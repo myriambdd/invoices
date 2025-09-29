@@ -6,9 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, MoreHorizontal, Building, Mail, Phone, FileText, TrendingUp, Eye, Edit, Trash2 } from "lucide-react"
+import { Search, MoveHorizontal as MoreHorizontal, Building, Mail, Phone, FileText, TrendingUp, Eye, CreditCard as Edit, Trash2 } from "lucide-react"
 import Link from "next/link"
-import { useToast } from "@/hooks/use-toast"
 import type { Supplier } from "@/lib/db"
 
 interface SupplierWithStats extends Supplier {
@@ -22,7 +21,6 @@ export function SuppliersTable() {
   const [filteredSuppliers, setFilteredSuppliers] = useState<SupplierWithStats[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
-  const { toast } = useToast()
 
   useEffect(() => {
     fetchSuppliers()
@@ -60,18 +58,9 @@ export function SuppliersTable() {
         })
         if (response.ok) {
           fetchSuppliers()
-          toast({
-            title: "Success",
-            description: "Supplier deleted successfully",
-          })
         }
       } catch (error) {
         console.error("Error deleting supplier:", error)
-        toast({
-          title: "Error", 
-          description: "Failed to delete supplier",
-          variant: "destructive",
-        })
       }
     }
   }
@@ -207,22 +196,14 @@ export function SuppliersTable() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
                           <Link href={`/suppliers/${supplier.id}`}>View Details</Link>
-                            <Eye className="w-4 h-4 mr-2" />
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/suppliers/${supplier.id}/edit`}>
-                            <Edit className="w-4 h-4 mr-2" />
+                        <DropdownMenuItem onClick={() => window.location.href = `/suppliers/${supplier.id}/edit`}>
                           Edit Supplier
-                          </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/invoices?supplier_id=${supplier.id}`}>
-                            <FileText className="w-4 h-4 mr-2" />
+                        <DropdownMenuItem onClick={() => window.location.href = `/invoices?supplier_id=${supplier.id}`}>
                           View Invoices
-                          </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(supplier.id)}>
-                          <Trash2 className="w-4 h-4 mr-2" />
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
