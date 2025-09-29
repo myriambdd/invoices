@@ -1,32 +1,41 @@
 import { Pool } from "pg"
 
-// Fail fast if missing
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set")
+// Environment variable with fallback
+const DATABASE_URL = process.env.DATABASE_URL || "postgresql://invoicer:invoicer_pw@localhost:5434/invoicedb"
+
+// Create a single pool instance
+let pool: Pool | null = null
+
+function getPool() {
+  if (!pool) {
+    pool = new Pool({
+      connectionString: DATABASE_URL,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    })
+  }
+  return pool
 }
-
-// Reuse pool in dev to avoid too many clients on hot-reload
-const globalForPg = global as unknown as { pgPool?: Pool }
-
-export const pool =
-  globalForPg.pgPool ??
-  new Pool({
-    connectionString: process.env.DATABASE_URL,
-  })
-
-if (!globalForPg.pgPool) globalForPg.pgPool = pool
 
 export type Row = Record<string, unknown>
 
 // Simple query function
 export async function sql<T = Row>(text: string, params?: any[]): Promise<T[]> {
-  const res = await pool.query<T>(text, params)
+  const client = getPool()
+  const res = await client.query<T>(text, params)
   return res.rows
 }
 
-// Optional: quick connectivity check (call once on server start)
+// Alternative query function for compatibility
+export async function query<T = Row>(text: string, params?: any[]): Promise<T[]> {
+  return sql<T>(text, params)
+}
+
+// Optional: quick connectivity check
 export async function assertDbHealthy() {
-  await pool.query("select 1")
+  const client = getPool()
+  await client.query("SELECT 1")
 }
 
 // Database types

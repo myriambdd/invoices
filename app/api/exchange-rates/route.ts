@@ -1,9 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { query } from "@/lib/db"
+import { sql } from "@/lib/db"
 
 export async function GET() {
   try {
-    const rates = await query(`
+    const rates = await sql(`
       SELECT er.*, 
              fc.code as from_currency_code, fc.name as from_currency_name, fc.symbol as from_currency_symbol,
              tc.code as to_currency_code, tc.name as to_currency_name, tc.symbol as to_currency_symbol
@@ -29,14 +29,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Get currency IDs
-    const [fromCurrency] = await query("SELECT id FROM currencies WHERE code = $1", [from_currency])
-    const [toCurrency] = await query("SELECT id FROM currencies WHERE code = $1", [to_currency])
+    const [fromCurrency] = await sql("SELECT id FROM currencies WHERE code = $1", [from_currency])
+    const [toCurrency] = await sql("SELECT id FROM currencies WHERE code = $1", [to_currency])
 
     if (!fromCurrency || !toCurrency) {
       return NextResponse.json({ error: "Invalid currency codes" }, { status: 400 })
     }
 
-    const [exchangeRate] = await query(`
+    const [exchangeRate] = await sql(`
       INSERT INTO exchange_rates (from_currency_id, to_currency_id, rate)
       VALUES ($1, $2, $3)
       ON CONFLICT (from_currency_id, to_currency_id)
