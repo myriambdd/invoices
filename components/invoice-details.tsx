@@ -7,20 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import {
-  FileText,
-  Building,
-  Calendar,
-  DollarSign,
-  Edit,
-  Download,
-  Mail,
-  MapPin,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  XCircle,
-} from "lucide-react"
+import { FileText, Building, Calendar, DollarSign, CreditCard as Edit, Download, Mail, MapPin, Clock, CircleCheck as CheckCircle, TriangleAlert as AlertTriangle, Circle as XCircle } from "lucide-react"
 import Link from "next/link"
 
 interface InvoiceWithDetails {

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Bell, Clock, AlertTriangle, CheckCircle, Plus } from "lucide-react"
+import { Calendar, Bell, Clock, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Plus } from "lucide-react"
 import { CurrencyDisplay } from "@/components/currency-display"
 
 interface PaymentReminder {

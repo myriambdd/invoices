@@ -2,6 +2,8 @@
 import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
+import { CurrencyConverter } from "@/lib/currency"
+import { useEffect } from "react"
 
 // 1) Load design tokens first (variables), then Tailwind layers
 import "../styles/globals.css"   // defines :root and .dark CSS variables
@@ -39,6 +41,11 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // Initialize currency converter on app start
+  useEffect(() => {
+    CurrencyConverter.initialize()
+  }, [])
+
   return (
     // Don't hardcode "dark" here—script above decides it before hydration
     <html lang="en" className={inter.variable} suppressHydrationWarning>

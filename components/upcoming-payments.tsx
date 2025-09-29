@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, AlertTriangle } from "lucide-react"
+import { Calendar, TriangleAlert as AlertTriangle } from "lucide-react"
 import { CurrencyDisplay } from "@/components/currency-display"
 
 const upcomingPayments = [

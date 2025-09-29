@@ -10,10 +10,16 @@ export async function GET(request: NextRequest) {
     const offset = Number.parseInt(searchParams.get("offset") || "0")
 
     let query = `
-      SELECT i.*, s.name as supplier_name, c.code as currency_code, c.symbol as currency_symbol
+      SELECT i.*, s.name as supplier_name, c.code as currency_code, c.symbol as currency_symbol,
+             CASE 
+               WHEN c.code = 'TND' THEN i.total_amount
+               ELSE i.total_amount * COALESCE(er.rate, 1)
+             END as total_amount_tnd
       FROM invoices i
       LEFT JOIN suppliers s ON i.supplier_id = s.id
       LEFT JOIN currencies c ON i.currency_id = c.id
+      LEFT JOIN exchange_rates er ON er.from_currency_id = c.id 
+        AND er.to_currency_id = (SELECT id FROM currencies WHERE code = 'TND' LIMIT 1)
       WHERE 1=1
     `
     const params: any[] = []

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { MoreHorizontal, FileText, Building, Calendar, DollarSign, Eye, Edit, Trash2 } from "lucide-react"
+import { MoveHorizontal as MoreHorizontal, FileText, Building, Calendar, DollarSign, Eye, CreditCard as Edit, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 
@@ -187,11 +187,17 @@ export function InvoicesTable() {
 
                     <TableCell>
                       <div className="space-y-1">
-                        <CurrencyDisplay 
-                          amount={invoice.total_amount} 
-                          currency={invoice.currency_code}
-                          className="flex items-center gap-2"
-                        />
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium">
+                            {invoice.total_amount.toLocaleString()} {invoice.currency_code}
+                          </span>
+                        </div>
+                        {invoice.total_amount_tnd && invoice.currency_code !== "TND" && (
+                          <p className="text-sm text-muted-foreground">
+                            ≈ {invoice.total_amount_tnd.toLocaleString()} TND
+                          </p>
+                        )}
                       </div>
                     </TableCell>
 

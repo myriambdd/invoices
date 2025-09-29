@@ -5,10 +5,17 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   try {
     const [invoice] = await sql`
       SELECT i.*, s.name as supplier_name, s.email as supplier_email,
-             s.address as supplier_address, c.code as currency_code, c.symbol as currency_symbol
+             s.address as supplier_address, c.code as currency_code, c.symbol as currency_symbol,
+             CASE 
+               WHEN c.code = 'TND' THEN i.total_amount
+               ELSE i.total_amount * COALESCE(er.rate, 1)
+             END as total_amount_tnd,
+             er.rate as exchange_rate
       FROM invoices i
       LEFT JOIN suppliers s ON i.supplier_id = s.id
       LEFT JOIN currencies c ON i.currency_id = c.id
+      LEFT JOIN exchange_rates er ON er.from_currency_id = c.id 
+        AND er.to_currency_id = (SELECT id FROM currencies WHERE code = 'TND' LIMIT 1)
       WHERE i.id = ${params.id}
     `
 
