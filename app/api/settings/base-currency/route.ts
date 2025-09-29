@@ -1,19 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { query } from "@/lib/db"
+import { sql } from "@/lib/db"
 
 export async function GET() {
   try {
-    const [baseCurrency] = await query(`
+    const [baseCurrency] = await sql`
       SELECT c.* FROM currencies c
       WHERE c.is_base = true
       LIMIT 1
-    `)
+    `
 
     if (!baseCurrency) {
       // Fallback to TND if no base currency is set
-      const [tnd] = await query(`
+      const [tnd] = await sql`
         SELECT * FROM currencies WHERE code = 'TND' LIMIT 1
-      `)
+      `
       return NextResponse.json(tnd || { code: 'TND', name: 'Tunisian Dinar', symbol: 'د.ت' })
     }
 
@@ -33,15 +33,15 @@ export async function PUT(request: NextRequest) {
     }
 
     // Remove base flag from all currencies
-    await query(`UPDATE currencies SET is_base = false`)
+    await sql`UPDATE currencies SET is_base = false`
     
     // Set new base currency
-    const [updatedCurrency] = await query(`
+    const [updatedCurrency] = await sql`
       UPDATE currencies 
       SET is_base = true 
-      WHERE id = $1 
+      WHERE id = ${currency_id}
       RETURNING *
-    `, [currency_id])
+    `
 
     if (!updatedCurrency) {
       return NextResponse.json({ error: "Currency not found" }, { status: 404 })

@@ -255,7 +255,15 @@ export function InvoicesTable() {
                             <Edit className="w-4 h-4 mr-2" />
                             {invoice.status === "paid" ? "Mark Unpaid" : "Mark Paid"}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => window.open(`/api/invoices/${invoice.id}/download`, '_blank')}>
+                          <DropdownMenuItem onClick={() => {
+                            // Create a download link for the original file
+                            const link = document.createElement('a')
+                            link.href = `/api/invoices/${invoice.id}/download`
+                            link.download = `invoice-${invoice.invoice_number || invoice.id}.pdf`
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                          }}>
                             <Download className="w-4 h-4 mr-2" />
                             Download PDF
                           </DropdownMenuItem>

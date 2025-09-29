@@ -13,30 +13,62 @@ import { Save, Loader as Loader2, Building, Mail, Phone, MapPin, CreditCard, Lan
 import type { Supplier } from "@/lib/db"
 
 interface SupplierFormProps {
-  supplier?: Supplier
+  supplierId?: string
   isEditing?: boolean
 }
 
-export function SupplierForm({ supplier, isEditing = false }: SupplierFormProps) {
+export function SupplierForm({ supplierId, isEditing = false }: SupplierFormProps) {
   const router = useRouter()
+  const [supplier, setSupplier] = useState<Supplier | null>(null)
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(isEditing)
   const [formData, setFormData] = useState({
-    name: supplier?.name || "",
-    email: supplier?.email || "",
-    phone: supplier?.phone || "",
-    address: supplier?.address || "",
-    tax_id: supplier?.tax_id || "",
-    iban: supplier?.iban || "",
-    bic: supplier?.bic || "",
-    rib: supplier?.rib || "",
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    tax_id: "",
+    iban: "",
+    bic: "",
+    rib: "",
   })
+
+  useEffect(() => {
+    if (isEditing && supplierId) {
+      fetchSupplier()
+    }
+  }, [isEditing, supplierId])
+
+  const fetchSupplier = async () => {
+    try {
+      const response = await fetch(`/api/suppliers/${supplierId}`)
+      if (response.ok) {
+        const supplierData = await response.json()
+        setSupplier(supplierData)
+        setFormData({
+          name: supplierData.name || "",
+          email: supplierData.email || "",
+          phone: supplierData.phone || "",
+          address: supplierData.address || "",
+          tax_id: supplierData.tax_id || "",
+          iban: supplierData.iban || "",
+          bic: supplierData.bic || "",
+          rib: supplierData.rib || "",
+        })
+      }
+    } catch (error) {
+      console.error("Error fetching supplier:", error)
+    } finally {
+      setInitialLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const url = isEditing ? `/api/suppliers/${supplier?.id}` : "/api/suppliers"
+      const url = isEditing ? `/api/suppliers/${supplierId}` : "/api/suppliers"
       const method = isEditing ? "PUT" : "POST"
 
       const response = await fetch(url, {
@@ -62,6 +94,17 @@ export function SupplierForm({ supplier, isEditing = false }: SupplierFormProps)
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading supplier data...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
