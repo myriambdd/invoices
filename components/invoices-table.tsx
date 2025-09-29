@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { MoveHorizontal as MoreHorizontal, FileText, Building, Calendar, DollarSign, Eye, CreditCard as Edit, Trash2 } from "lucide-react"
-import { Download } from "lucide-react"
+import { MoreHorizontal, FileText, Building, Calendar, DollarSign, Eye, Edit, Trash2, Download, CheckCircle } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 
@@ -50,8 +49,8 @@ export function InvoicesTable() {
 
   const updateInvoiceStatus = async (invoiceId: string, newStatus: string) => {
     try {
-      const response = await fetch(`/api/invoices/${invoiceId}`, {
-        method: "PUT",
+      const response = await fetch(`/api/invoices/${invoiceId}/status`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
@@ -69,7 +68,7 @@ export function InvoicesTable() {
   const deleteInvoice = async (invoiceId: string) => {
     if (confirm("Are you sure you want to delete this invoice?")) {
       try {
-        const response = await fetch(`/api/invoices/${invoiceId}`, {
+        const response = await fetch(`/api/invoices/${invoiceId}/delete`, {
           method: "DELETE",
         })
 
@@ -252,17 +251,12 @@ export function InvoicesTable() {
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => updateInvoiceStatus(invoice.id, invoice.status === "paid" ? "pending" : "paid")}>
-                            <Edit className="w-4 h-4 mr-2" />
+                            <CheckCircle className="w-4 h-4 mr-2" />
                             {invoice.status === "paid" ? "Mark Unpaid" : "Mark Paid"}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => {
                             // Create a download link for the original file
-                            const link = document.createElement('a')
-                            link.href = `/api/invoices/${invoice.id}/download`
-                            link.download = `invoice-${invoice.invoice_number || invoice.id}.pdf`
-                            document.body.appendChild(link)
-                            link.click()
-                            document.body.removeChild(link)
+                            window.open(`/api/invoices/${invoice.id}/download`, '_blank')
                           }}>
                             <Download className="w-4 h-4 mr-2" />
                             Download PDF
