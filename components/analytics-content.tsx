@@ -19,7 +19,7 @@ import {
   Pie,
   Cell,
 } from "recharts"
-import { TrendingUp, TrendingDown, BarChart3, PieChartIcon, Users, Package, ArrowUpDown, Merge } from "lucide-react"
+import { TrendingUp, TrendingDown, ChartBar as BarChart3, ChartPie as PieChartIcon, Users, Package, ArrowUpDown, Merge } from "lucide-react"
 import { CurrencyDisplay } from "@/components/currency-display"
 
 interface ArticleStats {

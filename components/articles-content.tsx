@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Package, Search, Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown } from "lucide-react"
+import { Package, Search, Plus, CreditCard as Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown } from "lucide-react"
 import { CurrencyDisplay } from "@/components/currency-display"
 
 interface Article {
