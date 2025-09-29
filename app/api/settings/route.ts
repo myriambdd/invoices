@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { query } from "@/lib/db"
 
 export async function GET() {
   try {
-    const settings = await sql`
+    const settings = await query(`
       SELECT key, value, description FROM settings
-    `
+    `)
     
     // Convert to key-value object
     const settingsObj = settings.reduce((acc: any, setting: any) => {
@@ -29,15 +29,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Key is required" }, { status: 400 })
     }
 
-    await sql`
+    await query(`
       INSERT INTO settings (key, value, description, updated_at)
-      VALUES (${key}, ${value}, ${description}, CURRENT_TIMESTAMP)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
       ON CONFLICT (key) 
       DO UPDATE SET 
         value = EXCLUDED.value,
         description = EXCLUDED.description,
         updated_at = CURRENT_TIMESTAMP
-    `
+    `, [key, value, description])
 
     return NextResponse.json({ success: true })
   } catch (error) {

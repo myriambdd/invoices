@@ -1,41 +1,37 @@
-import { Pool } from "pg"
+import { Pool, PoolClient } from "pg"
 
 // Environment variable with fallback
 const DATABASE_URL = process.env.DATABASE_URL || "postgresql://invoicer:invoicer_pw@localhost:5434/invoicedb"
 
 // Create a single pool instance
-let pool: Pool | null = null
-
-function getPool() {
-  if (!pool) {
-    pool = new Pool({
-      connectionString: DATABASE_URL,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    })
-  }
-  return pool
-}
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+})
 
 export type Row = Record<string, unknown>
 
-// Simple query function
-export async function sql<T = Row>(text: string, params?: any[]): Promise<T[]> {
-  const client = getPool()
-  const res = await client.query<T>(text, params)
+// Simple query function using template literals
+export async function sql<T = Row>(strings: TemplateStringsArray, ...values: any[]): Promise<T[]> {
+  const text = strings.reduce((result, string, i) => {
+    return result + string + (values[i] ? `$${i + 1}` : '')
+  }, '')
+  
+  const res = await pool.query<T>(text, values)
   return res.rows
 }
 
-// Alternative query function for compatibility
+// Alternative query function for direct SQL
 export async function query<T = Row>(text: string, params?: any[]): Promise<T[]> {
-  return sql<T>(text, params)
+  const res = await pool.query<T>(text, params)
+  return res.rows
 }
 
 // Optional: quick connectivity check
 export async function assertDbHealthy() {
-  const client = getPool()
-  await client.query("SELECT 1")
+  await pool.query("SELECT 1")
 }
 
 // Database types

@@ -1,21 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { query } from "@/lib/db"
 
 export async function GET() {
   try {
-    const [baseCurrency] = await sql`
+    const baseCurrencies = await query(`
       SELECT * FROM currencies WHERE is_base = true LIMIT 1
-    `
+    `)
 
-    if (!baseCurrency) {
+    if (!baseCurrencies.length) {
       // Fallback to TND if no base currency is set
-      const [tnd] = await sql`
+      const tndCurrencies = await query(`
         SELECT * FROM currencies WHERE code = 'TND' LIMIT 1
-      `
-      return NextResponse.json(tnd || { code: 'TND', name: 'Tunisian Dinar', symbol: 'د.ت' })
+      `)
+      return NextResponse.json(tndCurrencies[0] || { code: 'TND', name: 'Tunisian Dinar', symbol: 'د.ت' })
     }
 
-    return NextResponse.json(baseCurrency)
+    return NextResponse.json(baseCurrencies[0])
   } catch (error) {
     console.error("Error fetching base currency:", error)
     return NextResponse.json({ error: "Failed to fetch base currency" }, { status: 500 })
@@ -30,23 +30,22 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Currency ID is required" }, { status: 400 })
     }
 
-    // Start transaction-like operations
     // Remove base flag from all currencies
-    await sql`UPDATE currencies SET is_base = false`
+    await query(`UPDATE currencies SET is_base = false`)
     
     // Set new base currency
-    const [updatedCurrency] = await sql`
+    const updatedCurrencies = await query(`
       UPDATE currencies 
       SET is_base = true 
-      WHERE id = ${currency_id}
+      WHERE id = $1
       RETURNING *
-    `
+    `, [currency_id])
 
-    if (!updatedCurrency) {
+    if (!updatedCurrencies.length) {
       return NextResponse.json({ error: "Currency not found" }, { status: 404 })
     }
 
-    return NextResponse.json(updatedCurrency)
+    return NextResponse.json(updatedCurrencies[0])
   } catch (error) {
     console.error("Error updating base currency:", error)
     return NextResponse.json({ error: "Failed to update base currency" }, { status: 500 })

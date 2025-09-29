@@ -1,12 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { query } from "@/lib/db"
 
 export async function GET() {
   try {
-    const suppliers = await sql`
+    const suppliers = await query(`
       SELECT * FROM suppliers 
       ORDER BY name ASC
-    `
+    `)
     return NextResponse.json(suppliers)
   } catch (error) {
     console.error("Error fetching suppliers:", error)
@@ -23,13 +23,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
 
-    const [supplier] = await sql`
+    const suppliers = await query(`
       INSERT INTO suppliers (name, email, phone, address, tax_id, iban, bic, rib)
-      VALUES (${name}, ${email}, ${phone}, ${address}, ${tax_id}, ${iban}, ${bic}, ${rib})
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
-    `
+    `, [name, email, phone, address, tax_id, iban, bic, rib])
 
-    return NextResponse.json(supplier, { status: 201 })
+    return NextResponse.json(suppliers[0], { status: 201 })
   } catch (error) {
     console.error("Error creating supplier:", error)
     return NextResponse.json({ error: "Failed to create supplier" }, { status: 500 })

@@ -1,17 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { sql } from "@/lib/db"
+import { query } from "@/lib/db"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const [supplier] = await sql`
-      SELECT * FROM suppliers WHERE id = ${params.id}
-    `
+    const suppliers = await query(`
+      SELECT * FROM suppliers WHERE id = $1
+    `, [params.id])
 
-    if (!supplier) {
+    if (!suppliers.length) {
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
     }
 
-    return NextResponse.json(supplier)
+    return NextResponse.json(suppliers[0])
   } catch (error) {
     console.error("Error fetching supplier:", error)
     return NextResponse.json({ error: "Failed to fetch supplier" }, { status: 500 })
@@ -23,20 +23,20 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json()
     const { name, email, phone, address, tax_id, iban, bic, rib } = body
 
-    const [supplier] = await sql`
+    const suppliers = await query(`
       UPDATE suppliers 
-      SET name = ${name}, email = ${email}, phone = ${phone}, 
-          address = ${address}, tax_id = ${tax_id}, iban = ${iban}, 
-          bic = ${bic}, rib = ${rib}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${params.id}
+      SET name = $1, email = $2, phone = $3, 
+          address = $4, tax_id = $5, iban = $6, 
+          bic = $7, rib = $8, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9
       RETURNING *
-    `
+    `, [name, email, phone, address, tax_id, iban, bic, rib, params.id])
 
-    if (!supplier) {
+    if (!suppliers.length) {
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
     }
 
-    return NextResponse.json(supplier)
+    return NextResponse.json(suppliers[0])
   } catch (error) {
     console.error("Error updating supplier:", error)
     return NextResponse.json({ error: "Failed to update supplier" }, { status: 500 })
@@ -45,12 +45,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const [supplier] = await sql`
-      DELETE FROM suppliers WHERE id = ${params.id}
+    const suppliers = await query(`
+      DELETE FROM suppliers WHERE id = $1
       RETURNING *
-    `
+    `, [params.id])
 
-    if (!supplier) {
+    if (!suppliers.length) {
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
     }
 
