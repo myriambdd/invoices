@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { MoveHorizontal as MoreHorizontal, FileText, Building, Calendar, DollarSign, Eye, CreditCard as Edit, Trash2 } from "lucide-react"
+import { Download } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 
@@ -250,11 +251,13 @@ export function InvoicesTable() {
                               View Details
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem asChild>
-                            <Link href={`/invoices/${invoice.id}/edit`}>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit
-                            </Link>
+                          <DropdownMenuItem onClick={() => updateInvoiceStatus(invoice.id, invoice.status === "paid" ? "pending" : "paid")}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            {invoice.status === "paid" ? "Mark Unpaid" : "Mark Paid"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => window.open(`/api/invoices/${invoice.id}/download`, '_blank')}>
+                            <Download className="w-4 h-4 mr-2" />
+                            Download PDF
                           </DropdownMenuItem>
                           <DropdownMenuItem className="text-destructive" onClick={() => deleteInvoice(invoice.id)}>
                             <Trash2 className="w-4 h-4 mr-2" />
