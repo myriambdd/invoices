@@ -4,9 +4,7 @@ import { sql } from "@/lib/db"
 export async function GET() {
   try {
     const [baseCurrency] = await sql`
-      SELECT c.* FROM currencies c
-      WHERE c.is_base = true
-      LIMIT 1
+      SELECT * FROM currencies WHERE is_base = true LIMIT 1
     `
 
     if (!baseCurrency) {
@@ -32,6 +30,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Currency ID is required" }, { status: 400 })
     }
 
+    // Start transaction-like operations
     // Remove base flag from all currencies
     await sql`UPDATE currencies SET is_base = false`
     
